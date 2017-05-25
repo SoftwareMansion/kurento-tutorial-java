@@ -99,10 +99,14 @@ public class UserApp {
     }
 
     public static void main(String[] args) {
-        try {
-            new UserApp().run(KurentoClient.create(), args[0], args[1]);
-        } catch (IOException e) {
-            e.printStackTrace();
+        for (int i = 0; i < 5; i++) {
+            KurentoClient kurentoClient = KurentoClient.create();
+            UserApp userApp = new UserApp();
+            try {
+                userApp.run(kurentoClient, args[0], "test" + i);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 }

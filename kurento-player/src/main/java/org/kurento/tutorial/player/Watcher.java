@@ -35,10 +35,10 @@ public class Watcher {
 
         MediaProfileSpecType profile = getMediaProfileSpecType();
         recorder = new RecorderEndpoint
-                .Builder(pipeline, "file:///tmp/" + watchStream + new Date().getTime() + ".mp4")
+                .Builder(pipeline, "file:///tmp/" + watchStream + new Date().getTime() + ".webm")
                 .withMediaProfile(profile)
                 .build();
-        webRtcEndpoint.connect(recorder, MediaType.AUDIO);
+//        webRtcEndpoint.connect(recorder, MediaType.AUDIO);
         webRtcEndpoint.connect(recorder, MediaType.VIDEO);
 
         String sdpOffer = webRtcEndpoint.generateOffer();
@@ -77,6 +77,6 @@ public class Watcher {
     }
 
     private MediaProfileSpecType getMediaProfileSpecType() {
-        return MediaProfileSpecType.MP4;
+        return MediaProfileSpecType.WEBM_VIDEO_ONLY;
     }
 }

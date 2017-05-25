@@ -11,6 +11,7 @@ public class Streamer {
     private final KurentoRoomClient roomClient;
     private final String userName;
 
+    private PlayerEndpoint playerEndpoint;
     private WebRtcEndpoint webRtcEndpoint;
 
     public Streamer(KurentoClient kurento, KurentoRoomClient roomClient, String userName) {
@@ -25,8 +26,8 @@ public class Streamer {
                 .Builder(pipeline)
                 .build();
 
-        final PlayerEndpoint playerEndpoint = new PlayerEndpoint
-                .Builder(pipeline, "http://www.sample-videos.com/video/mp4/240/big_buck_bunny_240p_30mb.mp4")
+        playerEndpoint = new PlayerEndpoint
+                .Builder(pipeline, "http://files.kurento.org/video/format/sintel.webm")
                 .build();
         playerEndpoint.connect(webRtcEndpoint);
 
@@ -54,7 +55,9 @@ public class Streamer {
         playerEndpoint.addEndOfStreamListener(new EventListener<EndOfStreamEvent>() {
             @Override
             public void onEvent(EndOfStreamEvent event) {
-                playerEndpoint.play();
+                if (event.getSource().equals(playerEndpoint)) {
+                    playerEndpoint.play();
+                }
             }
         });
 

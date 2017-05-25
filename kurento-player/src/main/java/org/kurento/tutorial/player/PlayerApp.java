@@ -42,7 +42,7 @@ public class PlayerApp implements WebSocketConfigurer {
 
   @Bean
   public KurentoClient kurentoClient() {
-    return KurentoClient.create();
+      return KurentoClient.create();
   }
 
   @Override

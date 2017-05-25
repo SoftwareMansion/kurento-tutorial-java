@@ -1,0 +1,7 @@
+ROOM_NAME=$1
+USER_NAME=$2
+mvn compile -Denforcer.skip=true exec:java \
+    -Dexec.mainClass="org.kurento.tutorial.player.UserApp" \
+    -Dkms.url="wss://htdtest3.htdwork.com/kurento" \
+    -DkurentoRoom.url="wss://kurento.htdwork.com:8443/room" \
+    -Dexec.args="$ROOM_NAME $USER_NAME"

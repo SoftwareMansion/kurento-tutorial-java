@@ -95,6 +95,12 @@
 			<groupId>org.webjars.bower</groupId>
 			<artifactId>ekko-lightbox</artifactId>
 		</dependency>
+
+		<dependency>
+			<groupId>org.kurento</groupId>
+			<artifactId>kurento-room-client</artifactId>
+			<version>6.6.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -114,13 +120,13 @@
 					</execution>
 				</executions>
 			</plugin>
-			<plugin>
-				<groupId>org.codehaus.mojo</groupId>
-				<artifactId>exec-maven-plugin</artifactId>
-				<configuration>
-					<mainClass>${start-class}</mainClass>
-				</configuration>
-			</plugin>
+			<!--<plugin>-->
+				<!--<groupId>org.codehaus.mojo</groupId>-->
+				<!--<artifactId>exec-maven-plugin</artifactId>-->
+				<!--<configuration>-->
+					<!--<mainClass>${start-class}</mainClass>-->
+				<!--</configuration>-->
+			<!--</plugin>-->
 		</plugins>
 
 		<resources>

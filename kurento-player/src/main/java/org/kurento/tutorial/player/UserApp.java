@@ -66,20 +66,12 @@ public class UserApp {
                         case PARTICIPANTUNPUBLISHED_METHOD:
                             ParticipantUnpublishedInfo participantUnpublishedInfo = (ParticipantUnpublishedInfo) notification;
                             String participantUnpublishedId = participantUnpublishedInfo.getName();
-                            Watcher currentWatcher = watcherPipelines.get(participantUnpublishedId);
-                            if (currentWatcher != null) {
-                                currentWatcher.stop();
-                                watcherPipelines.remove(participantUnpublishedId);
-                            }
+                            removeWatcher(participantUnpublishedId);
                             break;
                         case PARTICIPANTLEFT_METHOD:
                             ParticipantLeftInfo participantLeftInfo = (ParticipantLeftInfo) notification;
                             String participantLeftId = participantLeftInfo.getName();
-                            Watcher leftWatcher = watcherPipelines.get(participantLeftId);
-                            if (leftWatcher != null) {
-                                leftWatcher.stop();
-                                watcherPipelines.remove(participantLeftId);
-                            }
+                            removeWatcher(participantLeftId);
                             break;
                     }
                 } catch (Exception e) {
@@ -95,6 +87,14 @@ public class UserApp {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    private void removeWatcher(String watcherName) {
+        Watcher watcher = watcherPipelines.get(watcherName);
+        if (watcher != null) {
+            watcher.stop();
+            watcherPipelines.remove(watcherName);
         }
     }
 

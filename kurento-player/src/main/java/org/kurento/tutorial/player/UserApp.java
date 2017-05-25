@@ -63,19 +63,23 @@ public class UserApp {
                             }
                             watcherPipelines.put(participantId, newWatcher);
                             break;
-//                        case PARTICIPANTUNPUBLISHED_METHOD:
-//                            ParticipantUnpublishedInfo participantUnpublishedInfo = (ParticipantUnpublishedInfo) notification;
-//                            String participantUnpublishedId = participantUnpublishedInfo.getName();
-//                            Watcher currentWatcher = watcherPipelines.get(participantUnpublishedId);
-//                            currentWatcher.stop();
-//                            watcherPipelines.remove(participantUnpublishedId);
-//                            break;
+                        case PARTICIPANTUNPUBLISHED_METHOD:
+                            ParticipantUnpublishedInfo participantUnpublishedInfo = (ParticipantUnpublishedInfo) notification;
+                            String participantUnpublishedId = participantUnpublishedInfo.getName();
+                            Watcher currentWatcher = watcherPipelines.get(participantUnpublishedId);
+                            if (currentWatcher != null) {
+                                currentWatcher.stop();
+                                watcherPipelines.remove(participantUnpublishedId);
+                            }
+                            break;
                         case PARTICIPANTLEFT_METHOD:
                             ParticipantLeftInfo participantLeftInfo = (ParticipantLeftInfo) notification;
                             String participantLeftId = participantLeftInfo.getName();
                             Watcher leftWatcher = watcherPipelines.get(participantLeftId);
-                            leftWatcher.stop();
-                            watcherPipelines.remove(participantLeftId);
+                            if (leftWatcher != null) {
+                                leftWatcher.stop();
+                                watcherPipelines.remove(participantLeftId);
+                            }
                             break;
                     }
                 } catch (Exception e) {

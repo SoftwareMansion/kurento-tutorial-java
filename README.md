@@ -3,6 +3,5 @@
 ## Running UserApp
 ```
 cd kurento-player
-mvn clean
-./runUser <ROOM_NAME> <USER_NAME>
+./runUser <ROOM_NAME> <USERS_COUNT>
 ```

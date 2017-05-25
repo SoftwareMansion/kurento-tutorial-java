@@ -99,7 +99,8 @@ public class UserApp {
     }
 
     public static void main(String[] args) {
-        for (int i = 0; i < 5; i++) {
+        int usersCount = Integer.parseInt(args[1]);
+        for (int i = 0; i < usersCount; i++) {
             KurentoClient kurentoClient = KurentoClient.create();
             UserApp userApp = new UserApp();
             try {

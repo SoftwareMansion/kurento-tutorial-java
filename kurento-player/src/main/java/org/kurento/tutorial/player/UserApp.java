@@ -9,9 +9,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 public class UserApp {
 
@@ -26,59 +23,65 @@ public class UserApp {
         final Streamer streamer = new Streamer(kurento, client, userName);
         for (Map.Entry<String, List<String>> entry : peers.entrySet()) {
             if (!entry.getKey().equals(userName)) {
-                Watcher watcher = new Watcher(kurento, client, entry.getKey(), entry.getKey() + "_" + entry.getValue().get(0));
+                String streamerName = entry.getKey();
+                String camera = entry.getValue().get(0);
+                Watcher watcher = new Watcher(kurento, client, streamerName, streamerName + "_" + camera);
                 watcherPipelines.put(entry.getKey(), watcher);
             }
         }
 
-        ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
-        ses.scheduleAtFixedRate(new Runnable() {
+        new Thread(new Runnable() {
             @Override
             public void run() {
-                try {
-                    Notification notification = client.getServerNotification();
-                    if (notification == null) return;
-                    switch (notification.getMethod()) {
-                        case ICECANDIDATE_METHOD:
-                            IceCandidateInfo iceCandidateInfo = (IceCandidateInfo) notification;
-                            String endpointName = iceCandidateInfo.getEndpointName();
-                            IceCandidate iceCandidate = iceCandidateInfo.getIceCandidate();
-                            if (userName.equals(endpointName)) {
-                                streamer.getWebRtcEndpoint().addIceCandidate(iceCandidate);
-                            }
-                            Watcher watcher = watcherPipelines.get(endpointName);
-                            if (watcher != null) {
-                                watcher.getWebRtcEndpoint().addIceCandidate(iceCandidate);
-                            }
-                            break;
-                        case PARTICIPANTPUBLISHED_METHOD:
-                            ParticipantPublishedInfo participantPublishedInfo = (ParticipantPublishedInfo) notification;
-                            String participantId = participantPublishedInfo.getId();
-                            String camera = participantPublishedInfo.getStreams().get(0);
-                            Watcher newWatcher = new Watcher(kurento, client, participantId, participantId + "_" + camera);
-                            try {
-                                newWatcher.createPipeline();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            watcherPipelines.put(participantId, newWatcher);
-                            break;
-                        case PARTICIPANTUNPUBLISHED_METHOD:
-                            ParticipantUnpublishedInfo participantUnpublishedInfo = (ParticipantUnpublishedInfo) notification;
-                            String participantUnpublishedId = participantUnpublishedInfo.getName();
-                            removeWatcher(participantUnpublishedId);
-                            break;
-                        case PARTICIPANTLEFT_METHOD:
-                            ParticipantLeftInfo participantLeftInfo = (ParticipantLeftInfo) notification;
-                            String participantLeftId = participantLeftInfo.getName();
-                            removeWatcher(participantLeftId);
-                            break;
+                while (true) {
+                    try {
+                        Notification notification = client.getServerNotification();
+                        if (notification == null) return;
+                        switch (notification.getMethod()) {
+                            case ICECANDIDATE_METHOD:
+                                IceCandidateInfo iceCandidateInfo = (IceCandidateInfo) notification;
+                                String endpointName = iceCandidateInfo.getEndpointName();
+                                IceCandidate iceCandidate = iceCandidateInfo.getIceCandidate();
+                                if (userName.equals(endpointName)) {
+                                    streamer.getWebRtcEndpoint().addIceCandidate(iceCandidate);
+                                    break;
+                                }
+                                Watcher watcher = watcherPipelines.get(endpointName);
+                                if (watcher != null) {
+                                    synchronized (watcher) {
+                                        watcher.getWebRtcEndpoint().addIceCandidate(iceCandidate);
+                                    }
+                                }
+                                break;
+                            case PARTICIPANTPUBLISHED_METHOD:
+                                ParticipantPublishedInfo participantPublishedInfo = (ParticipantPublishedInfo) notification;
+                                String participantId = participantPublishedInfo.getId();
+                                String camera = participantPublishedInfo.getStreams().get(0);
+                                Watcher newWatcher = new Watcher(kurento, client, participantId, participantId + "_" + camera);
+                                try {
+                                    newWatcher.createPipeline();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                                watcherPipelines.put(participantId, newWatcher);
+                                break;
+                            case PARTICIPANTUNPUBLISHED_METHOD:
+                                ParticipantUnpublishedInfo participantUnpublishedInfo = (ParticipantUnpublishedInfo) notification;
+                                String participantUnpublishedId = participantUnpublishedInfo.getName();
+                                removeWatcher(participantUnpublishedId);
+                                break;
+                            case PARTICIPANTLEFT_METHOD:
+                                ParticipantLeftInfo participantLeftInfo = (ParticipantLeftInfo) notification;
+                                String participantLeftId = participantLeftInfo.getName();
+                                removeWatcher(participantLeftId);
+                                break;
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
             }
-        }, 5, 1, TimeUnit.SECONDS);
+        }).start();
 
         streamer.createPipeline();
         for (Map.Entry<String, Watcher> watcherPipeline : watcherPipelines.entrySet()) {

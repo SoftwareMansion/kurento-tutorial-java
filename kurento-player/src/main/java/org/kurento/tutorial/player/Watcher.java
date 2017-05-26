@@ -26,7 +26,7 @@ public class Watcher {
         this.watchStream = watchStream;
     }
 
-    void createPipeline() throws IOException {
+    synchronized void createPipeline() throws IOException {
         pipeline = kurento.createMediaPipeline();
         webRtcEndpoint = new WebRtcEndpoint
                 .Builder(pipeline)
@@ -35,13 +35,14 @@ public class Watcher {
 
         MediaProfileSpecType profile = getMediaProfileSpecType();
         recorder = new RecorderEndpoint
-                .Builder(pipeline, "file:///tmp/" + watchStream + new Date().getTime() + ".webm")
+                .Builder(pipeline, getRecorderPath(watchStream))
                 .withMediaProfile(profile)
                 .build();
-//        webRtcEndpoint.connect(recorder, MediaType.AUDIO);
-        webRtcEndpoint.connect(recorder, MediaType.VIDEO);
+        webRtcEndpoint.connect(recorder);
 
         String sdpOffer = webRtcEndpoint.generateOffer();
+        String answer = roomClient.receiveVideoFrom(watchStream, sdpOffer);
+        webRtcEndpoint.processAnswer(answer);
 
         webRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
 
@@ -49,25 +50,39 @@ public class Watcher {
             public void onEvent(IceCandidateFoundEvent event) {
                 IceCandidate candidate = event.getCandidate();
                 try {
-                    roomClient.onIceCandidate(
-                            streamerName,
-                            candidate.getCandidate(),
-                            candidate.getSdpMid(),
-                            candidate.getSdpMLineIndex());
+                    synchronized (Watcher.this) {
+                        roomClient.onIceCandidate(
+                                streamerName,
+                                candidate.getCandidate(),
+                                candidate.getSdpMid(),
+                                candidate.getSdpMLineIndex());
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
         });
         webRtcEndpoint.gatherCandidates();
+        webRtcEndpoint.addNewCandidatePairSelectedListener(new EventListener<NewCandidatePairSelectedEvent>() {
+            @Override
+            public void onEvent(NewCandidatePairSelectedEvent newCandidatePairSelectedEvent) {
+                System.out.println(newCandidatePairSelectedEvent);
+            }
+        });
 
-        String answer = roomClient.receiveVideoFrom(watchStream, sdpOffer);
-        webRtcEndpoint.processAnswer(answer);
-
-        recorder.record();
+        webRtcEndpoint.addOnIceGatheringDoneListener(new EventListener<OnIceGatheringDoneEvent>() {
+            @Override
+            public void onEvent(OnIceGatheringDoneEvent onIceGatheringDoneEvent) {
+                recorder.record();
+            }
+        });
     }
 
-    public WebRtcEndpoint getWebRtcEndpoint() {
+    private String getRecorderPath(String streamName) {
+        return "file:///tmp/" + streamName + new Date().getTime() + ".webm";
+    }
+
+    WebRtcEndpoint getWebRtcEndpoint() {
         return webRtcEndpoint;
     }
 
@@ -77,6 +92,6 @@ public class Watcher {
     }
 
     private MediaProfileSpecType getMediaProfileSpecType() {
-        return MediaProfileSpecType.WEBM_VIDEO_ONLY;
+        return MediaProfileSpecType.WEBM;
     }
 }

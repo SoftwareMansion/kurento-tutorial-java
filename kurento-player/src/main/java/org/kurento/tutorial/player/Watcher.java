@@ -38,7 +38,8 @@ public class Watcher {
                 .Builder(pipeline, getRecorderPath(watchStream))
                 .withMediaProfile(profile)
                 .build();
-        webRtcEndpoint.connect(recorder);
+//        webRtcEndpoint.connect(recorder);
+        webRtcEndpoint.connect(recorder, MediaType.VIDEO);
 
         String sdpOffer = webRtcEndpoint.generateOffer();
         String answer = roomClient.receiveVideoFrom(watchStream, sdpOffer);
@@ -92,6 +93,6 @@ public class Watcher {
     }
 
     private MediaProfileSpecType getMediaProfileSpecType() {
-        return MediaProfileSpecType.WEBM;
+        return MediaProfileSpecType.WEBM_VIDEO_ONLY;
     }
 }

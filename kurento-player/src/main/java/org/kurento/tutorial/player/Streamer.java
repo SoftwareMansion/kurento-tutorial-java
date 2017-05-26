@@ -27,7 +27,7 @@ public class Streamer {
                 .build();
 
         playerEndpoint = new PlayerEndpoint
-                .Builder(pipeline, "http://files.kurento.org/video/format/sintel.webm")
+                .Builder(pipeline, "file:///home/ubuntu/FAM/sintel_no_audio.webm")
                 .build();
         playerEndpoint.connect(webRtcEndpoint);
 

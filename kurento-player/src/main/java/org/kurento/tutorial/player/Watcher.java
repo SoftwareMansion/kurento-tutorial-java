@@ -1,49 +1,73 @@
 package org.kurento.tutorial.player;
 
+import org.json.JSONObject;
 import org.kurento.client.*;
 import org.kurento.room.client.KurentoRoomClient;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.logging.Logger;
 
 public class Watcher {
 
     private static final String RECORDER_FILE_PATH = "file:///dev/null";
+    private final Logger log = Logger.getLogger(Watcher.class.getName());
 
     private final KurentoClient kurento;
-    private final KurentoRoomClient roomClient;
-    private final String streamerName;
-    private final String watchStream;
+    private final LicodeConnector roomClient;
+    private final Long streamId;
 
     private RecorderEndpoint recorder;
     private WebRtcEndpoint webRtcEndpoint;
     private MediaPipeline pipeline;
 
-    public Watcher(KurentoClient kurento, KurentoRoomClient roomClient, String streamerName, String watchStream) {
+    public Watcher(KurentoClient kurento, LicodeConnector roomClient, Long streamId) {
         this.kurento = kurento;
         this.roomClient = roomClient;
-        this.streamerName = streamerName;
-        this.watchStream = watchStream;
+        this.streamId = streamId;
     }
 
-    synchronized void createPipeline() throws IOException {
+    synchronized void createPipeline() throws Exception {
         pipeline = kurento.createMediaPipeline();
         webRtcEndpoint = new WebRtcEndpoint
                 .Builder(pipeline)
                 .build();
-//        webRtcEndpoint.connect(webRtcEndpoint);
 
         MediaProfileSpecType profile = getMediaProfileSpecType();
         recorder = new RecorderEndpoint
-                .Builder(pipeline, getRecorderPath(watchStream))
+                .Builder(pipeline, getRecorderPath(streamId))
                 .withMediaProfile(profile)
                 .build();
-//        webRtcEndpoint.connect(recorder);
         webRtcEndpoint.connect(recorder, MediaType.VIDEO);
 
         String sdpOffer = webRtcEndpoint.generateOffer();
-        String answer = roomClient.receiveVideoFrom(watchStream, sdpOffer);
-        webRtcEndpoint.processAnswer(answer);
+        roomClient.subscribe(streamId, sdpOffer, new StreamCallback() {
+            @Override
+            public void onSdpOffer(JSONObject msg) {
+                // nothing to do (?)
+                try {
+                    log.info("Received SDP offer: " + msg.toString(2));
+                } catch (Exception e) {}
+            }
+
+            @Override
+            public void onSdpAnswer(JSONObject msg) {
+                try {
+                    log.info("Received SDP answer: " + msg.toString(2));
+                    String answer = msg.getString("sdp");
+                    webRtcEndpoint.processAnswer(answer);
+                    webRtcEndpoint.gatherCandidates();
+                } catch (Exception e) {}
+            }
+
+            @Override
+            public void onIceCandidate(JSONObject msg) {
+                // nothing to do (?)
+                try {
+                    log.info("Received ICE candidate: " + msg.toString(2));
+                } catch (Exception e) {}
+            }
+        });
 
         webRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
 
@@ -52,18 +76,17 @@ public class Watcher {
                 IceCandidate candidate = event.getCandidate();
                 try {
                     synchronized (Watcher.this) {
-                        roomClient.onIceCandidate(
-                                streamerName,
+                        roomClient.sendIceCandidate(
+                                streamId,
                                 candidate.getCandidate(),
                                 candidate.getSdpMid(),
                                 candidate.getSdpMLineIndex());
                     }
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
         });
-        webRtcEndpoint.gatherCandidates();
         webRtcEndpoint.addNewCandidatePairSelectedListener(new EventListener<NewCandidatePairSelectedEvent>() {
             @Override
             public void onEvent(NewCandidatePairSelectedEvent newCandidatePairSelectedEvent) {
@@ -79,8 +102,8 @@ public class Watcher {
         });
     }
 
-    private String getRecorderPath(String streamName) {
-        return "file:///tmp/" + streamName + new Date().getTime() + ".webm";
+    private String getRecorderPath(Long streamId) {
+        return "file:///tmp/" + streamId.toString() + new Date().getTime() + ".mp4";
     }
 
     WebRtcEndpoint getWebRtcEndpoint() {

@@ -27,8 +27,12 @@ public class LicodeConnector {
     private final SubscribeCallback subscribeCallback;
     private final PublishCallback publishCallback;
     private final ConcurrentHashMap<Long, StreamCallback> streamCallbacks;
+    private String username;
+    private String room;
 
-    public LicodeConnector(SubscribeCallback subscribeCallback, PublishCallback publishCallback) {
+    public LicodeConnector(String username, String room, SubscribeCallback subscribeCallback, PublishCallback publishCallback) {
+        this.username = username;
+        this.room = room;
         this.subscribeCallback = subscribeCallback;
         this.publishCallback = publishCallback;
         streamCallbacks = new ConcurrentHashMap<>();
@@ -42,9 +46,9 @@ public class LicodeConnector {
     private JSONObject getToken() throws Exception {
         String url = "https://licode.swmansion.eu/createToken";
         JSONObject json = new JSONObject()
-                .put("username", "user")
+                .put("username", username)
                 .put("role", "presenter")
-                .put("room", "basicExampleRoom")
+                .put("room", room)
                 .put("type", "erizo");
         String result = sendPost(url, json);
         String decoded = decodeToken(result);
@@ -170,16 +174,18 @@ public class LicodeConnector {
         JSONObject mess = msg.getJSONObject("mess");
         String type = mess.getString("type");
         StreamCallback streamCallback = streamCallbacks.get(streamId);
-        if (type.equals("offer")) {
-            streamCallback.onSdpOffer(mess);
-        } else if (type.equals("answer")) {
+        if (type.equals("answer")) {
             streamCallback.onSdpAnswer(mess);
+        } else if (type.equals("started")) {
+            streamCallback.onStreamStarted(streamId);
+        } else if (type.equals("ready")) {
+            streamCallback.onStreamReady();
         } else {
-            streamCallback.onIceCandidate(mess);
+            log.warning("unhandled signaling message: " + msg.toString(2));
         }
     }
 
-    public void subscribe(Long streamId, String sdp, StreamCallback streamCallback) throws JSONException {
+    public void subscribe(Long streamId, StreamCallback streamCallback) throws JSONException {
         log.info("Subscribing stream " + streamId.toString() + "...");
         JSONObject obj = new JSONObject();
         obj.put("browser", "chrome-stable");
@@ -189,18 +195,11 @@ public class LicodeConnector {
         metadata.put("type", "subscriber");
         obj.put("metadata", metadata);
         socket.emit("subscribe", (Object... args) -> {
-            try {
-                streamCallbacks.put(streamId, streamCallback);
-                JSONObject offer = prepareSdpOffer(streamId, sdp);
-                socket.emit("signaling_message", (Object... msgArgs) -> {}, offer);
-            } catch(Exception e) {
-                log.severe("Error");
-                e.printStackTrace();
-            }
+            streamCallbacks.put(streamId, streamCallback);
         }, obj, null);
     }
 
-    public void publish(String sdp, StreamCallback streamCallback) throws JSONException {
+    public void publish(StreamCallback streamCallback) throws JSONException {
         JSONObject obj = new JSONObject();
         obj.put("audio", true);
         obj.put("video", true);
@@ -217,9 +216,12 @@ public class LicodeConnector {
         socket.emit("publish", (Object... args) -> {
             Long streamId = (Long) args[0];
             streamCallbacks.put(streamId, streamCallback);
-            JSONObject offer = prepareSdpOffer(streamId, sdp);
-            socket.emit("signaling_message", (Object... msgArgs) -> {}, offer, null);
         }, obj, null);
+    }
+
+    public void sendSdpOffer(Long streamId, String sdp) {
+        JSONObject offer = prepareSdpOffer(streamId, sdp);
+        socket.emit("signaling_message", (Object... msgArgs) -> {}, offer, null);
     }
 
     public JSONObject prepareSdpOffer(Long streamId, String sdp) {
@@ -248,13 +250,13 @@ public class LicodeConnector {
         innerMsg.put("type", "candidate");
 
         JSONObject candidateObj = new JSONObject();
-        candidateObj.put("candidate", candidate);
+        candidateObj.put("candidate", "a=" + candidate);
         candidateObj.put("sdpMid", sdpMid);
         candidateObj.put("sdpMLineIndex", sdpMLineIndex);
 
         innerMsg.put("candidate", candidateObj);
         msg.put("msg", innerMsg);
-        socket.emit("signaling_message", (Object... msgArgs) -> {}, msg);
+        socket.emit("signaling_message", (Object... msgArgs) -> {}, msg, null);
     }
 
     public static JSONObject[] toArray(JSONArray arr) {

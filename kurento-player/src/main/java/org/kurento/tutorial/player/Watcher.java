@@ -2,7 +2,6 @@ package org.kurento.tutorial.player;
 
 import org.json.JSONObject;
 import org.kurento.client.*;
-
 import java.util.Date;
 import java.util.logging.Logger;
 
@@ -13,15 +12,17 @@ public class Watcher {
     private final KurentoClient kurento;
     private final LicodeConnector roomClient;
     private final Long streamId;
+    private final String username;
 
     private RecorderEndpoint recorder;
     private WebRtcEndpoint webRtcEndpoint;
     private MediaPipeline pipeline;
 
-    public Watcher(KurentoClient kurento, LicodeConnector roomClient, Long streamId) {
+    public Watcher(KurentoClient kurento, LicodeConnector roomClient, Long streamId, String username) {
         this.kurento = kurento;
         this.roomClient = roomClient;
         this.streamId = streamId;
+        this.username = username;
     }
 
     synchronized void createPipeline() throws Exception {
@@ -37,16 +38,7 @@ public class Watcher {
                 .build();
         webRtcEndpoint.connect(recorder, MediaType.VIDEO);
 
-        String sdpOffer = webRtcEndpoint.generateOffer();
-        roomClient.subscribe(streamId, sdpOffer, new StreamCallback() {
-            @Override
-            public void onSdpOffer(JSONObject msg) {
-                // nothing to do (?)
-                try {
-                    log.info("Received SDP offer: " + msg.toString(2));
-                } catch (Exception e) {}
-            }
-
+        roomClient.subscribe(streamId, new StreamCallback() {
             @Override
             public void onSdpAnswer(JSONObject msg) {
                 try {
@@ -58,11 +50,16 @@ public class Watcher {
             }
 
             @Override
-            public void onIceCandidate(JSONObject msg) {
-                // nothing to do (?)
-                try {
-                    log.info("Received ICE candidate: " + msg.toString(2));
-                } catch (Exception e) {}
+            public void onStreamStarted(Long sid) {
+                log.info("Stream " + sid.toString() + " started, sending SDP offer");
+                String sdpOffer = webRtcEndpoint.generateOffer();
+                roomClient.sendSdpOffer(streamId, sdpOffer);
+            }
+
+            @Override
+            public void onStreamReady() {
+                log.info("Recording stream...");
+                recorder.record();
             }
         });
 
@@ -84,35 +81,17 @@ public class Watcher {
                 }
             }
         });
-        webRtcEndpoint.addNewCandidatePairSelectedListener(new EventListener<NewCandidatePairSelectedEvent>() {
-            @Override
-            public void onEvent(NewCandidatePairSelectedEvent newCandidatePairSelectedEvent) {
-                System.out.println(newCandidatePairSelectedEvent);
-            }
-        });
-
-        webRtcEndpoint.addOnIceGatheringDoneListener(new EventListener<OnIceGatheringDoneEvent>() {
-            @Override
-            public void onEvent(OnIceGatheringDoneEvent onIceGatheringDoneEvent) {
-                recorder.record();
-            }
-        });
     }
 
     private String getRecorderPath(Long streamId) {
-        return "file:///tmp/" + streamId.toString() + "_" + new Date().getTime() + ".mp4";
-    }
-
-    WebRtcEndpoint getWebRtcEndpoint() {
-        return webRtcEndpoint;
+        return "file:///tmp/" + username + "_" + streamId.toString() + "_" + new Date().getTime() + ".mp4";
     }
 
     void stop() {
-//        recorder.stop();
         pipeline.release();
     }
 
     private MediaProfileSpecType getMediaProfileSpecType() {
-        return MediaProfileSpecType.WEBM_VIDEO_ONLY;
+        return MediaProfileSpecType.MP4_VIDEO_ONLY;
     }
 }

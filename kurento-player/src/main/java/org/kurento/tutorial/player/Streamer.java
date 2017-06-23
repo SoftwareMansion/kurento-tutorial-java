@@ -3,8 +3,6 @@ package org.kurento.tutorial.player;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.kurento.client.*;
-import org.kurento.room.client.KurentoRoomClient;
-
 import java.io.IOException;
 import java.util.logging.Logger;
 
@@ -34,16 +32,7 @@ public class Streamer {
                 .build();
         playerEndpoint.connect(webRtcEndpoint);
 
-        String sdpOffer = webRtcEndpoint.generateOffer();
-        roomClient.publish(sdpOffer, new StreamCallback() {
-            @Override
-            public void onSdpOffer(JSONObject msg) {
-                // nothing to do
-                try {
-                    log.info("Received SDP offer: " + msg.toString(2));
-                } catch (Exception e) {}
-            }
-
+        roomClient.publish(new StreamCallback() {
             @Override
             public void onSdpAnswer(JSONObject msg) {
                 try {
@@ -55,11 +44,17 @@ public class Streamer {
             }
 
             @Override
-            public void onIceCandidate(JSONObject msg) {
-                // nothing to do (?)
-                try {
-                    log.info("Received ICE candidate: " + msg.toString(2));
-                } catch (Exception e) {}
+            public void onStreamStarted(Long sid) {
+                log.info("Stream " + sid.toString() + " started, sending SDP offer");
+                streamId = sid;
+                String sdpOffer = webRtcEndpoint.generateOffer();
+                roomClient.sendSdpOffer(streamId, sdpOffer);
+            }
+
+            @Override
+            public void onStreamReady() {
+                log.info("Playing video");
+//                playerEndpoint.play();
             }
         });
 
@@ -80,19 +75,11 @@ public class Streamer {
             }
         });
 
-        playerEndpoint.addEndOfStreamListener(new EventListener<EndOfStreamEvent>() {
-            @Override
-            public void onEvent(EndOfStreamEvent event) {
-                if (event.getSource().equals(playerEndpoint)) {
-                    playerEndpoint.play();
-                }
-            }
-        });
-
         webRtcEndpoint.addOnIceGatheringDoneListener(new EventListener<OnIceGatheringDoneEvent>() {
             @Override
             public void onEvent(OnIceGatheringDoneEvent onIceGatheringDoneEvent) {
                 try {
+                    log.severe("!!!!");
                     roomClient.sendIceCandidate(
                             streamId,
                             "end",
@@ -103,15 +90,10 @@ public class Streamer {
                 }
             }
         });
-
-        playerEndpoint.play();
     }
 
-//    private String getVideoFilePath() {
-//        return "file:///home/kurento/jellyfish-3-mbps-hd-h264.mkv";
-//    }
     private String getVideoFilePath() {
-        return "file:///home/kurento/vp8.webm";
+        return "file:///home/kurento/jellyfish-3-mbps-hd-h264.mkv";
     }
 
     public WebRtcEndpoint getWebRtcEndpoint() {

@@ -107,17 +107,26 @@ public class UserApp {
     }
 
     public void start(final KurentoClient kurento) throws Exception {
-        SubscribeCallback subscribeCallback = (JSONObject stream) -> {
+//        SubscribeCallback subscribeCallback = (JSONObject stream) -> {
+//            try {
+//                Long streamId = stream.getLong("id");
+//                Watcher watcher = new Watcher(kurento, connector, streamId);
+//                watcher.createPipeline();
+//            } catch (Exception e) {
+//                log.severe("Error");
+//                e.printStackTrace();
+//            }
+//        };
+        PublishCallback publishCallback = () -> {
             try {
-                Long streamId = stream.getLong("id");
-                Watcher watcher = new Watcher(kurento, connector, streamId);
-                watcher.createPipeline();
+                Streamer streamer = new Streamer(kurento, connector);
+                streamer.createPipeline();
             } catch (Exception e) {
                 log.severe("Error");
                 e.printStackTrace();
             }
         };
-        connector = new LicodeConnector(subscribeCallback, null);
+        connector = new LicodeConnector(null, publishCallback);
         connector.connect();
     }
 

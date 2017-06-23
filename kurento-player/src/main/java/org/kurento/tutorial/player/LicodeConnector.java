@@ -191,22 +191,53 @@ public class LicodeConnector {
         socket.emit("subscribe", (Object... args) -> {
             try {
                 streamCallbacks.put(streamId, streamCallback);
-
-                JSONObject offer = new JSONObject();
-                offer.put("streamId", streamId);
-
-                JSONObject sdpObj = new JSONObject();
-                sdpObj.put("type", "offer");
-                sdpObj.put("sdp", sdp);
-
-                offer.put("msg", sdpObj);
-
+                JSONObject offer = prepareSdpOffer(streamId, sdp);
                 socket.emit("signaling_message", (Object... msgArgs) -> {}, offer);
             } catch(Exception e) {
                 log.severe("Error");
                 e.printStackTrace();
             }
         }, obj, null);
+    }
+
+    public void publish(String sdp, StreamCallback streamCallback) throws JSONException {
+        JSONObject obj = new JSONObject();
+        obj.put("audio", true);
+        obj.put("video", true);
+        obj.put("data", true);
+        obj.put("screen", "");
+        obj.put("state", "erizo");
+        obj.put("minVideoBW", 0);
+        obj.put(
+                "metadata",
+                new JSONObject()
+                        .put("type", "publisher")
+        );
+
+        socket.emit("publish", (Object... args) -> {
+            Long streamId = (Long) args[0];
+            streamCallbacks.put(streamId, streamCallback);
+            JSONObject offer = prepareSdpOffer(streamId, sdp);
+            socket.emit("signaling_message", (Object... msgArgs) -> {}, offer, null);
+        }, obj, null);
+    }
+
+    public JSONObject prepareSdpOffer(Long streamId, String sdp) {
+        try {
+            JSONObject offer = new JSONObject();
+            offer.put("streamId", streamId);
+            offer.put(
+                    "msg",
+                    new JSONObject()
+                            .put("type", "offer")
+                            .put("sdp", sdp)
+            );
+            return offer;
+        } catch (Exception e) {
+            log.severe("Error");
+            e.printStackTrace();
+        }
+        return null;
     }
 
     public void sendIceCandidate(Long streamId, String candidate, String sdpMid, Integer sdpMLineIndex) throws Exception {

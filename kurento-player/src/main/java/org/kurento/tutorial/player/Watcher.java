@@ -2,15 +2,12 @@ package org.kurento.tutorial.player;
 
 import org.json.JSONObject;
 import org.kurento.client.*;
-import org.kurento.room.client.KurentoRoomClient;
 
-import java.io.IOException;
 import java.util.Date;
 import java.util.logging.Logger;
 
 public class Watcher {
 
-    private static final String RECORDER_FILE_PATH = "file:///dev/null";
     private final Logger log = Logger.getLogger(Watcher.class.getName());
 
     private final KurentoClient kurento;
@@ -103,7 +100,7 @@ public class Watcher {
     }
 
     private String getRecorderPath(Long streamId) {
-        return "file:///tmp/" + streamId.toString() + new Date().getTime() + ".mp4";
+        return "file:///tmp/" + streamId.toString() + "_" + new Date().getTime() + ".mp4";
     }
 
     WebRtcEndpoint getWebRtcEndpoint() {

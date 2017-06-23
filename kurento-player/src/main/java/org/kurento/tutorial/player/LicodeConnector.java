@@ -151,7 +151,17 @@ public class LicodeConnector {
                     if (event.equals("signaling_message_erizo")) {
                         JSONObject msg = (JSONObject) args[0];
                         processSignalingMessageErizo(msg);
-                    } else {
+                    } else if (event.equals("onAddStream")) {
+                        if (subscribeCallback != null) {
+                            JSONObject stream = (JSONObject) args[0];
+                            subscribeCallback.onShouldSubscribe(stream);
+                        }
+                    } else if (event.equals("onRemoveStream")) {
+                        JSONObject msg = (JSONObject) args[0];
+                        Long id = msg.getLong("id");
+                        StreamCallback streamCallback = streamCallbacks.get(id);
+                        streamCallback.onRemoveStream();
+                    }  else {
                         log.warning("Unsupported event " + event);
                     }
                 } catch (Exception e) {

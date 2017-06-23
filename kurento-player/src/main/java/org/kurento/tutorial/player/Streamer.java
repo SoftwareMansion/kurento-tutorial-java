@@ -54,7 +54,12 @@ public class Streamer {
             @Override
             public void onStreamReady() {
                 log.info("Playing video");
-//                playerEndpoint.play();
+                playerEndpoint.play();
+            }
+
+            @Override
+            public void onRemoveStream() {
+                // nothing to do
             }
         });
 
@@ -74,26 +79,10 @@ public class Streamer {
                 }
             }
         });
-
-        webRtcEndpoint.addOnIceGatheringDoneListener(new EventListener<OnIceGatheringDoneEvent>() {
-            @Override
-            public void onEvent(OnIceGatheringDoneEvent onIceGatheringDoneEvent) {
-                try {
-                    log.severe("!!!!");
-                    roomClient.sendIceCandidate(
-                            streamId,
-                            "end",
-                            "end",
-                            -1);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        });
     }
 
     private String getVideoFilePath() {
-        return "file:///home/kurento/jellyfish-3-mbps-hd-h264.mkv";
+        return "file:///home/kurento/big_buck_bunny.mp4";
     }
 
     public WebRtcEndpoint getWebRtcEndpoint() {

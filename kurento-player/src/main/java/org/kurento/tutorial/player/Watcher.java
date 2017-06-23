@@ -61,6 +61,12 @@ public class Watcher {
                 log.info("Recording stream...");
                 recorder.record();
             }
+
+            @Override
+            public void onRemoveStream() {
+                log.info("Stopping recording...");
+                pipeline.release();
+            }
         });
 
         webRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
@@ -85,10 +91,6 @@ public class Watcher {
 
     private String getRecorderPath(Long streamId) {
         return "file:///tmp/" + username + "_" + streamId.toString() + "_" + new Date().getTime() + ".mp4";
-    }
-
-    void stop() {
-        pipeline.release();
     }
 
     private MediaProfileSpecType getMediaProfileSpecType() {

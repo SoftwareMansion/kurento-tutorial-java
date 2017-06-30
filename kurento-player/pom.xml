@@ -48,7 +48,9 @@
 
 		<!-- Main class -->
 		<start-class>org.kurento.tutorial.player.UserApp</start-class>
-
+    
+                <maven.compiler.source>1.8</maven.compiler.source>
+                <maven.compiler.target>1.8</maven.compiler.target>
 	</properties>
 
 	<dependencies>
@@ -62,10 +64,6 @@
 		</dependency>
 
 		<!-- Kurento -->
-		<dependency>
-			<groupId>org.kurento</groupId>
-			<artifactId>kurento-client</artifactId>
-		</dependency>
 		<dependency>
 			<groupId>org.kurento</groupId>
 			<artifactId>kurento-utils-js</artifactId>
@@ -97,12 +95,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.kurento</groupId>
-			<artifactId>kurento-room-client</artifactId>
-			<version>6.6.0</version>
-		</dependency>
-
-		<dependency>
 			<groupId>org.json</groupId>
 			<artifactId>json</artifactId>
 			<version>20170516</version>
@@ -113,6 +105,18 @@
 			<artifactId>commons-io</artifactId>
 			<version>2.5</version>
 		</dependency>
+	 <dependency>
+	  <groupId>org.kurento</groupId>
+	  <artifactId>kurento-client</artifactId>
+	  <version>6.6.0</version>
+	  <type>jar</type>
+	 </dependency>
+	 <dependency>
+	  <groupId>socket.io</groupId>
+	  <artifactId>socketio</artifactId>
+	  <version>1.0</version>
+	  <type>jar</type>
+	 </dependency>
 	</dependencies>
 
 	<build>

@@ -4,6 +4,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.kurento.client.*;
 import java.io.IOException;
+import java.nio.channels.Pipe;
 import java.util.logging.Logger;
 
 public class Streamer {
@@ -13,6 +14,7 @@ public class Streamer {
     private Long streamId;
     private final Logger log = Logger.getLogger(Watcher.class.getName());
 
+    private MediaPipeline pipeline;
     private PlayerEndpoint playerEndpoint;
     private WebRtcEndpoint webRtcEndpoint;
 
@@ -22,11 +24,11 @@ public class Streamer {
     }
 
     void createPipeline() throws IOException, JSONException {
-        MediaPipeline pipeline = kurento.createMediaPipeline();
+        pipeline = kurento.createMediaPipeline();
         webRtcEndpoint = new WebRtcEndpoint
                 .Builder(pipeline)
                 .build();
-
+        
         playerEndpoint = new PlayerEndpoint
                 .Builder(pipeline, getVideoFilePath())
                 .build();
@@ -48,6 +50,7 @@ public class Streamer {
                 log.info("Stream " + sid.toString() + " started, sending SDP offer");
                 streamId = sid;
                 String sdpOffer = webRtcEndpoint.generateOffer();
+                sdpOffer = sdpOffer.replaceAll("a=rtcp-mux\r\n", "a=rtcp-mux\r\na=sendonly\r\n");
                 roomClient.sendSdpOffer(streamId, sdpOffer);
             }
 
@@ -87,5 +90,9 @@ public class Streamer {
 
     public WebRtcEndpoint getWebRtcEndpoint() {
         return webRtcEndpoint;
+    }
+
+    void stop() {
+        pipeline.release();
     }
 }

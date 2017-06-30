@@ -48,8 +48,10 @@ public class LicodeConnector {
         JSONObject json = new JSONObject()
                 .put("username", username)
                 .put("role", "presenter")
-                .put("room", room)
                 .put("type", "erizo");
+        if (room != null) {
+            json.put("room", room);
+        }
         String result = sendPost(url, json);
         String decoded = decodeToken(result);
         return new JSONObject(decoded);

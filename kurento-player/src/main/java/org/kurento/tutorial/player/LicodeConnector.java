@@ -1,27 +1,31 @@
 package org.kurento.tutorial.player;
 
-import io.socket.IOAcknowledge;
-import io.socket.IOCallback;
-import io.socket.SocketIO;
-import io.socket.SocketIOException;
+import io.socket.client.Ack;
+import io.socket.client.Socket;
+import io.socket.client.IO;
+import io.socket.emitter.Emitter;
+import io.socket.engineio.client.EngineIOException;
+import okhttp3.OkHttpClient;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import javax.net.ssl.SSLContext;
+import javax.net.ssl.*;
 import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.KeyStore;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 
 public class LicodeConnector {
-    SocketIO socket;
+    Socket socket;
 
     static final Logger log = Logger.getLogger(LicodeConnector.class.getName());
     private final SubscribeCallback subscribeCallback;
@@ -46,9 +50,9 @@ public class LicodeConnector {
     private JSONObject getToken() throws Exception {
         String url = "https://licode.swmansion.eu/createToken";
         JSONObject json = new JSONObject()
-                .put("username", username)
-                .put("role", "presenter")
-                .put("type", "erizo");
+            .put("username", username)
+            .put("role", "presenter")
+            .put("type", "erizo");
         if (room != null) {
             json.put("room", room);
         }
@@ -92,86 +96,61 @@ public class LicodeConnector {
         System.out.println(token);
         String wsUri = "https://" + token.getString("host");
 
-        SocketIO.setDefaultSSLSocketFactory(SSLContext.getDefault());
-        this.socket = new SocketIO(wsUri);
-        this.socket.connect(new IOCallback() {
-            @Override
-            public void onMessage(JSONObject json, IOAcknowledge ack) {
-                try {
-                    System.out.println("Server said:" + json.toString(2));
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
+        IO.Options opts = new IO.Options();
+        opts.secure = true;
+        opts.transports = new String[] {"websocket"};
+        this.socket = IO.socket(wsUri, opts);
 
-            @Override
-            public void onMessage(String data, IOAcknowledge ack) {
-                System.out.println("Server said: " + data);
-            }
+        this.socket
+                .on(Socket.EVENT_ERROR, args -> System.out.println("an Error occured"))
+                .on(Socket.EVENT_CONNECT_ERROR, args -> {
+                    log.severe("Connection error");
+                    ((EngineIOException) args[0]).printStackTrace();
+                    log.severe(args[0].toString());
+                })
+                .on(Socket.EVENT_DISCONNECT, args -> System.out.println("Connection terminated."))
+                .on(Socket.EVENT_CONNECT, args -> {
+                    System.out.println("Connection established");
 
-            @Override
-            public void onError(SocketIOException socketIOException) {
-                System.out.println("an Error occured");
-                socketIOException.printStackTrace();
-            }
-
-            @Override
-            public void onDisconnect() {
-                System.out.println("Connection terminated.");
-            }
-
-            @Override
-            public void onConnect() {
-                System.out.println("Connection established");
-
-                socket.emit("token", new SimpleAck() {
-                    @Override
-                    void handle(String respType, JSONObject msg) throws JSONException {
-                        if (respType.equals("error")) {
-                            log.severe("Error token response");
-                            return;
-                        }
-
-                        for (JSONObject stream : toArray(msg.getJSONArray("streams"))) {
-                            if (subscribeCallback != null) {
-                                subscribeCallback.onShouldSubscribe(stream);
+                    socket.emit("token", token, new SimpleAck() {
+                        @Override
+                        void handle(String respType, JSONObject msg) throws JSONException {
+                            if (respType.equals("error")) {
+                                log.severe("Error token response");
+                                return;
                             }
-                        }
 
-                        if (publishCallback != null) {
-                            publishCallback.onShouldPublish();
-                        }
+                            for (JSONObject stream : toArray(msg.getJSONArray("streams"))) {
+                                if (subscribeCallback != null) {
+                                    subscribeCallback.onShouldSubscribe(stream);
+                                }
+                            }
+
+                    if (publishCallback != null) {
+                        publishCallback.onShouldPublish();
                     }
-                }, token);
-            }
-
-            @Override
-            public void on(String event, IOAcknowledge ack, Object... args) {
-                try {
-                    System.out.println("Server triggered event '" + event + "'");
-
-                    if (event.equals("signaling_message_erizo")) {
-                        JSONObject msg = (JSONObject) args[0];
-                        processSignalingMessageErizo(msg);
-                    } else if (event.equals("onAddStream")) {
-                        if (subscribeCallback != null) {
-                            JSONObject stream = (JSONObject) args[0];
-                            subscribeCallback.onShouldSubscribe(stream);
-                        }
-                    } else if (event.equals("onRemoveStream")) {
-                        JSONObject msg = (JSONObject) args[0];
-                        Long id = msg.getLong("id");
-                        StreamCallback streamCallback = streamCallbacks.get(id);
-                        streamCallback.onRemoveStream();
-                    }  else {
-                        log.warning("Unsupported event " + event);
-                    }
-                } catch (Exception e) {
-                    log.severe("Error");
-                    e.printStackTrace();
                 }
+            });
+        }).on("signaling_message_erizo", args -> {
+            try {
+                JSONObject msg = (JSONObject) args[0];
+                processSignalingMessageErizo(msg);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+        }).on("onAddStream", args -> {
+            if (subscribeCallback != null) {
+                JSONObject stream = (JSONObject) args[0];
+                subscribeCallback.onShouldSubscribe(stream);
+            }
+
+        }).on("onRemoveStream", args -> {
+            JSONObject msg = (JSONObject) args[0];
+            Long id = msg.getLong("id");
+            StreamCallback streamCallback = streamCallbacks.get(id);
+            streamCallback.onRemoveStream();
         });
+        socket.connect();
     }
 
     private void processSignalingMessageErizo(JSONObject msg) throws Exception {
@@ -206,9 +185,9 @@ public class LicodeConnector {
         JSONObject metadata = new JSONObject();
         metadata.put("type", "subscriber");
         obj.put("metadata", metadata);
-        socket.emit("subscribe", (Object... args) -> {
+        socket.emit("subscribe", new Object[] {obj, null}, (Object... args) -> {
             streamCallbacks.put(streamId, streamCallback);
-        }, obj, null);
+        });
     }
 
     public void publish(StreamCallback streamCallback) throws JSONException {
@@ -222,18 +201,18 @@ public class LicodeConnector {
         obj.put(
                 "metadata",
                 new JSONObject()
-                        .put("type", "publisher")
-        );
+                .put("type", "publisher")
+               );
 
-        socket.emit("publish", (Object... args) -> {
+        socket.emit("publish",new Object[] { obj, null }, (Object... args) -> {
             Long streamId = (Long) args[0];
             streamCallbacks.put(streamId, streamCallback);
-        }, obj, null);
+        });
     }
 
     public void sendSdpOffer(Long streamId, String sdp) {
         JSONObject offer = prepareSdpOffer(streamId, sdp);
-        socket.emit("signaling_message", (Object... msgArgs) -> {}, offer, null);
+        socket.emit("signaling_message", new Object[] { offer, null }, (Object... msgArgs) -> {});
     }
 
     public JSONObject prepareSdpOffer(Long streamId, String sdp) {
@@ -243,9 +222,9 @@ public class LicodeConnector {
             offer.put(
                     "msg",
                     new JSONObject()
-                            .put("type", "offer")
-                            .put("sdp", sdp)
-            );
+                    .put("type", "offer")
+                    .put("sdp", sdp)
+                    );
             return offer;
         } catch (Exception e) {
             log.severe("Error");
@@ -268,7 +247,7 @@ public class LicodeConnector {
 
         innerMsg.put("candidate", candidateObj);
         msg.put("msg", innerMsg);
-        socket.emit("signaling_message", (Object... msgArgs) -> {}, msg, null);
+        socket.emit("signaling_message", new Object[] {msg, null}, (Object... msgArgs) -> {});
     }
 
     public static JSONObject[] toArray(JSONArray arr) {
@@ -285,9 +264,9 @@ public class LicodeConnector {
         return null;
     }
 
-    abstract class SimpleAck implements IOAcknowledge {
+    abstract class SimpleAck implements Ack {
         @Override
-        public void ack(Object... objects) {
+        public void call(Object... objects) {
             try {
                 handle((String) objects[0], (JSONObject) objects[1]);
             } catch (Exception e) {

@@ -66,20 +66,16 @@ public class Streamer {
             }
         });
 
-        webRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
-
-            @Override
-            public void onEvent(IceCandidateFoundEvent event) {
-                IceCandidate candidate = event.getCandidate();
-                try {
-                    roomClient.sendIceCandidate(
-                            streamId,
-                            candidate.getCandidate(),
-                            candidate.getSdpMid(),
-                            candidate.getSdpMLineIndex());
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+        webRtcEndpoint.addIceCandidateFoundListener(event -> {
+            IceCandidate candidate = event.getCandidate();
+            try {
+                roomClient.sendIceCandidate(
+                        streamId,
+                        candidate.getCandidate(),
+                        candidate.getSdpMid(),
+                        candidate.getSdpMLineIndex());
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         });
     }

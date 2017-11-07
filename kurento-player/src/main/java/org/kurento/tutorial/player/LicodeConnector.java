@@ -48,11 +48,12 @@ public class LicodeConnector {
     }
 
     private JSONObject getToken() throws Exception {
-        String url = "https://licode.swmansion.eu/createToken";
+        String url = "https://staging-licode.fam.software-mansion.com/createToken/";
         JSONObject json = new JSONObject()
-            .put("username", username)
-            .put("role", "presenter")
-            .put("type", "erizo");
+                .put("username", username)
+                .put("role", "presenter")
+                .put("type", "erizo")
+                .put("alwaysUseLicode", true);
         if (room != null) {
             json.put("room", room);
         }
@@ -85,8 +86,10 @@ public class LicodeConnector {
 
     private String decodeToken(String result) {
         try {
-            return new String(Base64.getDecoder().decode(result.getBytes()), "UTF-8");
-        } catch (UnsupportedEncodingException e) {
+            final JSONObject response = new JSONObject(result);
+            final String token = response.getString("token");
+            return new String(Base64.getDecoder().decode(token.getBytes()), "UTF-8");
+        } catch (UnsupportedEncodingException | JSONException e) {
             System.err.println("Failed to decode token: " + e.getMessage());
         }
         return null;
@@ -105,7 +108,7 @@ public class LicodeConnector {
                 .on(Socket.EVENT_ERROR, args -> System.out.println("an Error occured"))
                 .on(Socket.EVENT_CONNECT_ERROR, args -> {
                     log.severe("Connection error");
-                    ((EngineIOException) args[0]).printStackTrace();
+                    ((Throwable) args[0]).printStackTrace();
                     log.severe(args[0].toString());
                 })
                 .on(Socket.EVENT_DISCONNECT, args -> System.out.println("Connection terminated."))

@@ -1,9 +1,10 @@
 package org.kurento.tutorial.player;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.json.JSONObject;
 import org.kurento.client.KurentoClient;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 public class UserApp {
@@ -43,6 +44,19 @@ public class UserApp {
     public static void main(String[] args) throws Exception {
         String room = null;
         int usersCount = 10;
+
+        if (args.length >= 1) {
+            room = args[0];
+        }
+
+        if (args.length >= 2) {
+            try {
+                usersCount = Integer.parseUnsignedInt(args[1]);
+            } catch (NumberFormatException e) {
+                System.err.println("User count is not a number!");
+                System.exit(1);
+            }
+        }
 
         List<UserApp> apps = new ArrayList<>();
         for (int i = 0; i < usersCount; i++) {

@@ -17,8 +17,11 @@ public class UserApp {
         SubscribeCallback subscribeCallback = (JSONObject stream) -> {
             try {
                 Long streamId = stream.getLong("id");
-                Watcher watcher = new Watcher(kurento, connector, streamId, userName);
-                watcher.createPipeline();
+                // don't watch myself
+                if (streamer == null || !streamId.equals(streamer.getStreamId())) {
+                    Watcher watcher = new Watcher(kurento, connector, streamId, userName);
+                    watcher.createPipeline();
+                }
             } catch (Exception e) {
                 log.severe("Error");
                 e.printStackTrace();

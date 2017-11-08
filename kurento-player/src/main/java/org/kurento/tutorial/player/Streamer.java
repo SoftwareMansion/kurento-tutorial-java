@@ -23,6 +23,13 @@ public class Streamer {
         this.roomClient = roomClient;
     }
 
+    /**
+     * Nullable
+     */
+    public Long getStreamId() {
+        return streamId;
+    }
+
     void createPipeline() throws IOException, JSONException {
         pipeline = kurento.createMediaPipeline();
         webRtcEndpoint = new WebRtcEndpoint

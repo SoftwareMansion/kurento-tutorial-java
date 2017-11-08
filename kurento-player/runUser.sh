@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 ROOM_NAME=$1
 USERS_COUNT=$2
 mvn compile -Denforcer.skip=true exec:java \

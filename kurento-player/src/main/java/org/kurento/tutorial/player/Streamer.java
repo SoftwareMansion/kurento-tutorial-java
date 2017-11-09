@@ -88,7 +88,7 @@ public class Streamer {
     }
 
     private String getVideoFilePath() {
-        return "file:///home/kurento/big_buck_bunny.mp4";
+        return "file:///home/kurento/big_buck_bunny_long.webm";
     }
 
     public WebRtcEndpoint getWebRtcEndpoint() {

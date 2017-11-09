@@ -5,6 +5,7 @@ import org.kurento.client.KurentoClient;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
 
 public class UserApp {
@@ -14,11 +15,13 @@ public class UserApp {
     static final Logger log = Logger.getLogger(UserApp.class.getName());
 
     private void run(final KurentoClient kurento, final String roomName, final String userName) throws Exception {
+        System.err.printf("[%s]: Starting user\n", userName);
         SubscribeCallback subscribeCallback = (JSONObject stream) -> {
             try {
                 Long streamId = stream.getLong("id");
                 // don't watch myself
                 if (streamer == null || !streamId.equals(streamer.getStreamId())) {
+                    System.err.printf("[%s]: subscribe %d\n", userName, streamId);
                     Watcher watcher = new Watcher(kurento, connector, streamId, userName);
                     watcher.createPipeline();
                 }
@@ -29,6 +32,7 @@ public class UserApp {
         };
         PublishCallback publishCallback = () -> {
             try {
+                System.err.printf("[%s]: publish\n", userName);
                 streamer = new Streamer(kurento, connector);
                 streamer.createPipeline();
             } catch (Exception e) {
@@ -40,39 +44,109 @@ public class UserApp {
         connector.connect();
     }
 
-    private static void stopStreamers() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-    
-    public static void main(String[] args) throws Exception {
-        String room = null;
-        int usersCount = 10;
+    private static class Conf {
+        private UserApp userApp;
+        private KurentoClient kurentoClient;
+        private String room;
+        private String userName;
 
-        if (args.length >= 1) {
-            room = args[0];
+        public Conf(UserApp userApp, KurentoClient kurentoClient, String room, String userName) {
+            this.userApp = userApp;
+            this.kurentoClient = kurentoClient;
+            this.room = room;
+            this.userName = userName;
         }
 
-        if (args.length >= 2) {
-            try {
-                usersCount = Integer.parseUnsignedInt(args[1]);
-            } catch (NumberFormatException e) {
-                System.err.println("User count is not a number!");
-                System.exit(1);
-            }
+        public UserApp getUserApp() {
+            return userApp;
         }
 
-        List<UserApp> apps = new ArrayList<>();
-        for (int i = 0; i < usersCount; i++) {
-            KurentoClient kurentoClient = KurentoClient.create();
-            UserApp userApp = new UserApp();
+        public String getRoom() {
+            return room;
+        }
+
+        public String getUserName() {
+            return userName;
+        }
+
+        public void run() {
             try {
-                userApp.run(kurentoClient, room, "test" + i);
+                userApp.run(kurentoClient, room, userName);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-        System.in.read();
-        apps.forEach(app -> app.stopStreamer());
+    }
+
+    /**
+     * 32:2:testN 72:3:fooN
+     */
+    public static void main(String[] args) {
+        try {
+            final List<Conf> confs = new ArrayList<>();
+
+            final KurentoClient kurentoClient = KurentoClient.create();
+
+            for (String arg : args) {
+                int rooms;
+                int users;
+                String roomPattern;
+
+                try {
+                    final String[] split = arg.split(":", 3);
+
+                    if (split.length != 3) {
+                        throw new Exception("config should have 3 items");
+                    }
+
+                    rooms = Integer.parseUnsignedInt(split[0]);
+                    users = Integer.parseUnsignedInt(split[1]);
+                    roomPattern = split[2];
+                } catch (Exception e) {
+                    System.err.printf("Invalid pattern %s\n", arg);
+                    throw e;
+                }
+
+                assert rooms > 0;
+                assert users > 0;
+                assert roomPattern != null && !Objects.equals(roomPattern, "");
+
+                for (int i = 1; i <= rooms; i++) {
+                    String room = roomPattern.replaceAll("N", Integer.toString(i));
+                    for (int j = 1; j <= users; j++) {
+                        final UserApp userApp = new UserApp();
+                        final String userName = String.format("test_%d_%d", i, j);
+                        confs.add(new Conf(userApp, kurentoClient, room, userName));
+                    }
+                }
+            }
+
+            System.err.println(" ID |    ROOM    |    USER NAME");
+            for (int i = 0; i < confs.size(); i++) {
+                Conf conf = confs.get(i);
+                System.err.printf("%3d | %-10s | %-14s\n", i, conf.getRoom(), conf.getUserName());
+            }
+
+            System.err.println("Starting in 5 seconds...");
+            Thread.sleep(5000);
+
+            for (Conf conf : confs) {
+                conf.run();
+            }
+
+            System.in.read();
+
+            for (Conf conf : confs) {
+                conf.getUserApp().stopStreamer();
+            }
+
+            System.err.println("Will exit in 5 seconds");
+            Thread.sleep(5000);
+            System.exit(0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
 
     private void stopStreamer() {

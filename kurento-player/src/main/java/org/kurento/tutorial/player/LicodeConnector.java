@@ -1,30 +1,30 @@
 package org.kurento.tutorial.player;
 
 import io.socket.client.Ack;
-import io.socket.client.Socket;
 import io.socket.client.IO;
-import io.socket.emitter.Emitter;
-import io.socket.engineio.client.EngineIOException;
+import io.socket.client.Socket;
+import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import javax.net.ssl.*;
 import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 
 public class LicodeConnector {
+    public static final ConnectionPool GLOBAL_CONNECTION_POOL = new ConnectionPool(Integer.MAX_VALUE, 5, TimeUnit.MINUTES);
+
     Socket socket;
 
     static final Logger log = Logger.getLogger(LicodeConnector.class.getName());
@@ -96,58 +96,85 @@ public class LicodeConnector {
     }
 
     private void connectToSocket(final JSONObject token) throws Exception {
-        System.out.println(token);
+        System.err.printf("[%s]: token %s\n", username, token);
+
         String wsUri = "https://" + token.getString("host");
+
+        final OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                .connectionPool(GLOBAL_CONNECTION_POOL)
+                .build();
 
         IO.Options opts = new IO.Options();
         opts.secure = true;
-        opts.transports = new String[] {"websocket"};
+        opts.transports = new String[]{"websocket"};
+        opts.forceNew = true;
+        opts.webSocketFactory = okHttpClient;
         this.socket = IO.socket(wsUri, opts);
 
-        this.socket
-                .on(Socket.EVENT_ERROR, args -> System.out.println("an Error occured"))
-                .on(Socket.EVENT_CONNECT_ERROR, args -> {
-                    log.severe("Connection error");
-                    ((Throwable) args[0]).printStackTrace();
-                    log.severe(args[0].toString());
-                })
-                .on(Socket.EVENT_DISCONNECT, args -> System.out.println("Connection terminated."))
-                .on(Socket.EVENT_CONNECT, args -> {
-                    System.out.println("Connection established");
+        this.socket.on(Socket.EVENT_ERROR, args -> {
+            System.err.printf("[%s]: an Error occured\n", username);
+            if (args.length > 0 && args[0] instanceof Throwable) {
+                ((Throwable) args[0]).printStackTrace();
+            } else {
+                System.err.println(Arrays.toString(args));
+            }
+        });
+        this.socket.on(Socket.EVENT_CONNECT_ERROR, args -> {
+            System.err.printf("[%s]: Connection error\n", username);
+            if (args.length > 0 && args[0] instanceof Throwable) {
+                ((Throwable) args[0]).printStackTrace();
+            } else {
+                System.err.println(Arrays.toString(args));
+            }
+        });
+        this.socket.on(Socket.EVENT_CONNECT_TIMEOUT, args -> {
+            System.err.printf("[%s]: Connection timed out\n", username);
+            if (args.length > 0 && args[0] instanceof Throwable) {
+                ((Throwable) args[0]).printStackTrace();
+            } else {
+                System.err.println(Arrays.toString(args));
+            }
+        });
+        this.socket.on(Socket.EVENT_DISCONNECT,
+                args -> System.err.printf("[%s]: Connection terminated: %s\n", username, Arrays.toString(args)));
+        this.socket.on(Socket.EVENT_CONNECT, args -> {
+            System.err.printf("[%s]: Connection established\n", username);
 
-                    socket.emit("token", token, new SimpleAck() {
-                        @Override
-                        void handle(String respType, JSONObject msg) throws JSONException {
-                            if (respType.equals("error")) {
-                                log.severe("Error token response");
-                                return;
-                            }
+            socket.emit("token", token, new SimpleAck() {
+                @Override
+                void handle(String respType, JSONObject msg) throws JSONException {
+                    if (respType.equals("error")) {
+                        log.severe("Error token response");
+                        return;
+                    }
 
-                            for (JSONObject stream : toArray(msg.getJSONArray("streams"))) {
-                                if (subscribeCallback != null) {
-                                    subscribeCallback.onShouldSubscribe(stream);
-                                }
-                            }
+                    for (JSONObject stream : toArray(msg.getJSONArray("streams"))) {
+                        if (subscribeCallback != null) {
+                            subscribeCallback.onShouldSubscribe(stream);
+                        }
+                    }
 
                     if (publishCallback != null) {
                         publishCallback.onShouldPublish();
                     }
                 }
             });
-        }).on("signaling_message_erizo", args -> {
+        });
+        this.socket.on("signaling_message_erizo", args -> {
             try {
                 JSONObject msg = (JSONObject) args[0];
                 processSignalingMessageErizo(msg);
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }).on("onAddStream", args -> {
+        });
+        this.socket.on("onAddStream", args -> {
             if (subscribeCallback != null) {
                 JSONObject stream = (JSONObject) args[0];
                 subscribeCallback.onShouldSubscribe(stream);
             }
-
-        }).on("onRemoveStream", args -> {
+        });
+        this.socket.on("onRemoveStream", args -> {
             JSONObject msg = (JSONObject) args[0];
             Long id = msg.getLong("id");
             StreamCallback streamCallback = streamCallbacks.get(id);

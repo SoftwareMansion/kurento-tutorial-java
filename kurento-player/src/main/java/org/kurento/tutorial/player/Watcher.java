@@ -58,7 +58,7 @@ public class Watcher {
 
             @Override
             public void onStreamReady() {
-//                log.info("Recording stream...");
+                log.info("Recording stream...");
 //                recorder.record();
             }
 

@@ -3,8 +3,8 @@ package org.kurento.tutorial.player;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.kurento.client.*;
+
 import java.io.IOException;
-import java.nio.channels.Pipe;
 import java.util.logging.Logger;
 
 public class Streamer {
@@ -35,9 +35,10 @@ public class Streamer {
         webRtcEndpoint = new WebRtcEndpoint
                 .Builder(pipeline)
                 .build();
-        
+
         playerEndpoint = new PlayerEndpoint
                 .Builder(pipeline, getVideoFilePath())
+                .useEncodedMedia()
                 .build();
         playerEndpoint.connect(webRtcEndpoint);
 
@@ -49,7 +50,8 @@ public class Streamer {
                     String answer = msg.getString("sdp");
                     webRtcEndpoint.processAnswer(answer);
                     webRtcEndpoint.gatherCandidates();
-                } catch (Exception e) {}
+                } catch (Exception e) {
+                }
             }
 
             @Override

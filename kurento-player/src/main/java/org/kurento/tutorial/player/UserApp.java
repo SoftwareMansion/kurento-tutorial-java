@@ -3,10 +3,9 @@ package org.kurento.tutorial.player;
 import org.json.JSONObject;
 import org.kurento.client.KurentoClient;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public class UserApp {
 
@@ -14,7 +13,7 @@ public class UserApp {
     private Streamer streamer = null;
     static final Logger log = Logger.getLogger(UserApp.class.getName());
 
-    private void run(final KurentoClient kurento, final String roomName, final String userName) throws Exception {
+    public void run(final KurentoClient kurento, final String roomName, final String userName) throws Exception {
         System.err.printf("[%s]: Starting user\n", userName);
         SubscribeCallback subscribeCallback = (JSONObject stream) -> {
             try {
@@ -44,100 +43,45 @@ public class UserApp {
         connector.connect();
     }
 
-    private static class Conf {
-        private UserApp userApp;
-        private KurentoClient kurentoClient;
-        private String room;
-        private String userName;
-
-        public Conf(UserApp userApp, KurentoClient kurentoClient, String room, String userName) {
-            this.userApp = userApp;
-            this.kurentoClient = kurentoClient;
-            this.room = room;
-            this.userName = userName;
-        }
-
-        public UserApp getUserApp() {
-            return userApp;
-        }
-
-        public String getRoom() {
-            return room;
-        }
-
-        public String getUserName() {
-            return userName;
-        }
-
-        public void run() {
-            try {
-                userApp.run(kurentoClient, room, userName);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
     /**
-     * 32:2:testN 72:3:fooN
+     * 32:2 72:3
      */
     public static void main(String[] args) {
         try {
-            final List<Conf> confs = new ArrayList<>();
-
-            final KurentoClient kurentoClient = KurentoClient.create();
-
-            for (String arg : args) {
-                int rooms;
-                int users;
-                String roomPattern;
-
-                try {
-                    final String[] split = arg.split(":", 3);
-
-                    if (split.length != 3) {
-                        throw new Exception("config should have 3 items");
-                    }
-
-                    rooms = Integer.parseUnsignedInt(split[0]);
-                    users = Integer.parseUnsignedInt(split[1]);
-                    roomPattern = split[2];
-                } catch (Exception e) {
-                    System.err.printf("Invalid pattern %s\n", arg);
-                    throw e;
-                }
-
-                assert rooms > 0;
-                assert users > 0;
-                assert roomPattern != null && !Objects.equals(roomPattern, "");
-
-                for (int i = 1; i <= rooms; i++) {
-                    String room = roomPattern.replaceAll("N", Integer.toString(i));
-                    for (int j = 1; j <= users; j++) {
-                        final UserApp userApp = new UserApp();
-                        final String userName = String.format("test_%d_%d", i, j);
-                        confs.add(new Conf(userApp, kurentoClient, room, userName));
-                    }
-                }
+            final String propKurentos = System.getProperty("benchmark.kurentos");
+            if(propKurentos == null) {
+                System.err.println("Please define -Dbenchmark.kurentos");
+                System.exit(1);
             }
 
-            System.err.println(" ID |    ROOM    |    USER NAME");
-            for (int i = 0; i < confs.size(); i++) {
-                Conf conf = confs.get(i);
-                System.err.printf("%3d | %-10s | %-14s\n", i, conf.getRoom(), conf.getUserName());
+            List<String> kurentoUrls = Arrays.stream(propKurentos.split("\\s"))
+                    .map(s -> String.format("ws://%s:8888/kurento", s))
+                    .collect(Collectors.toList());
+
+            if (kurentoUrls.isEmpty()) {
+                System.err.println("-Dbenchmark.kurentos is empty");
+                System.exit(1);
             }
+
+            final List<UserConf> userConfs = parseUserConfs(args);
+            List<RunConf> runConfs = KurentoBalancer.balance(userConfs, kurentoUrls);
+
+            printSummaryTable(runConfs);
+
+            Collections.shuffle(runConfs);
 
             System.err.println("Starting in 5 seconds...");
             Thread.sleep(5000);
 
-            for (Conf conf : confs) {
-                conf.run();
+            final KurentoClientManager kcm = new KurentoClientManager();
+            for (RunConf runConf : runConfs) {
+                runConf.run(kcm);
             }
 
             System.in.read();
 
-            for (Conf conf : confs) {
-                conf.getUserApp().stopStreamer();
+            for (RunConf runConf : runConfs) {
+                runConf.getUserConf().getUserApp().stopStreamer();
             }
 
             System.err.println("Will exit in 5 seconds");
@@ -146,6 +90,69 @@ public class UserApp {
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
+        }
+    }
+
+    private static List<UserConf> parseUserConfs(String[] args) throws Exception {
+        final List<UserConf> userConfs = new ArrayList<>();
+        final String roomPrefix = "test";
+
+        int roomId = 1;
+
+        for (String arg : args) {
+            int rooms;
+            int users;
+
+            try {
+                final String[] split = arg.split(":", 2);
+
+                if (split.length != 2) {
+                    throw new Exception("config should have 2 items");
+                }
+
+                rooms = Integer.parseUnsignedInt(split[0]);
+                users = Integer.parseUnsignedInt(split[1]);
+            } catch (Exception e) {
+                System.err.printf("Invalid pattern %s\n", arg);
+                throw e;
+            }
+
+            assert rooms > 0;
+            assert users > 0;
+
+            for (int i = 1; i <= rooms; i++) {
+                String room = roomPrefix + Integer.toString(roomId);
+                for (int j = 1; j <= users; j++) {
+                    final UserApp userApp = new UserApp();
+                    final String userName = roomPrefix + String.format("%d-%d", roomId, j);
+
+                    final UserConf userConf = new UserConf(userApp, room, userName);
+                    userConfs.add(userConf);
+                }
+
+                roomId++;
+            }
+        }
+        return userConfs;
+    }
+
+    private static void printSummaryTable(List<RunConf> runConfs) {
+        final ArrayList<RunConf> rcs = new ArrayList<>(runConfs);
+        rcs.sort(Comparator.comparing(RunConf::getAddress));
+
+        int i = 0;
+        String addr = null;
+        for (RunConf rc : rcs) {
+            if (!Objects.equals(rc.getAddress(), addr)) {
+                i = 1;
+                addr = rc.getAddress();
+                System.err.printf("\n%s:\n", rc.getAddress());
+                System.err.println(" ID  |    ROOM    | USER NAME");
+            }
+
+            System.err.printf("%4d | %-10s | %s\n", i, rc.getUserConf().getRoom(), rc.getUserConf().getUserName());
+
+            i++;
         }
     }
 

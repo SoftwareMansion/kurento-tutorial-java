@@ -17,6 +17,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -298,7 +299,11 @@ public class LicodeConnector {
         @Override
         public void call(Object... objects) {
             try {
-                handle((String) objects[0], (JSONObject) objects[1]);
+                if(!(objects[1] instanceof JSONObject)) {
+                    log.severe(String.format("Expected JSON object, got: %s", Objects.toString(objects[1])));
+                } else {
+                    handle((String) objects[0], (JSONObject) objects[1]);
+                }
             } catch (Exception e) {
                 log.severe("Error");
                 e.printStackTrace();

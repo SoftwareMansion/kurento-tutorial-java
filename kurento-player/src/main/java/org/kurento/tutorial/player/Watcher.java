@@ -94,6 +94,6 @@ public class Watcher {
     }
 
     private MediaProfileSpecType getMediaProfileSpecType() {
-        return MediaProfileSpecType.MP4_VIDEO_ONLY;
+        return MediaProfileSpecType.WEBM_VIDEO_ONLY;
     }
 }
